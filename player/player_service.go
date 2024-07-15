@@ -83,13 +83,15 @@ func newPlayer(client *redis.Client, account string, password string, name strin
 }
 
 func NewPlayer(account string, password string, name string, balance float64) (*Player, *egame_core.Error) {
-	return newPlayer(cache.GetClient(), account, password, name, balance)
+	cache := cache.GetClient()
+	defer cache.Close()
+	return newPlayer(cache, account, password, name, balance)
 
 }
 
 func LoginPlayer(account string, password string) (*Player, *egame_core.Error) {
 	client := cache.GetClient()
-
+	defer client.Close()
 	player_id, err := client.Get(context.Background(), fmt.Sprintf(PLAYER_ACCOUNT_KEY, account)).Result()
 
 	if err != nil {
@@ -169,7 +171,9 @@ func getPlayerId(client *redis.Client) (int64, *egame_core.Error) {
 	return id, nil
 }
 func GetPlayerBalance(id int64) (float64, error) {
-	return getPlayerBalance(nil, id)
+	client := cache.GetClient()
+	defer client.Close()
+	return getPlayerBalance(client, id)
 }
 
 // get player balance from redis
@@ -195,7 +199,9 @@ func getPlayerBalance(client *redis.Client, id int64) (float64, error) {
 }
 
 func DecutPlayerBalance(id int64, balance float64) *egame_core.Error {
-	return decutPlayerBalance(nil, id, balance)
+	client := cache.GetClient()
+	defer client.Close()
+	return decutPlayerBalance(client, id, balance)
 
 }
 
@@ -230,6 +236,7 @@ func decutPlayerBalance(client *redis.Client, id int64, balance float64) *egame_
 // add player balance to redis
 func AddPlayerBalance(id int64, balance float64) *egame_core.Error {
 	client := cache.GetClient()
+	defer client.Close()
 	if balance <= 0 {
 		return &egame_core.Error{Code: egame_core.NotEnoughBalance, Error: fmt.Errorf("balance must be greater than 0")}
 	}
