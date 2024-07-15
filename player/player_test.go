@@ -1,4 +1,4 @@
-package egamecore
+package player
 
 import (
 	"encoding/json"
