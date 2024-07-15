@@ -24,7 +24,7 @@ const (
 )
 
 // 使用 mysql_connection 產生新玩家
-func NewPlayer(client *redis.Client, account string, password string, name string, balance float64) (*Player, *egame_core.Error) {
+func newPlayer(client *redis.Client, account string, password string, name string, balance float64) (*Player, *egame_core.Error) {
 	if nil == client {
 		client = cache.GetClient()
 	}
@@ -40,7 +40,7 @@ func NewPlayer(client *redis.Client, account string, password string, name strin
 	}
 
 	// 取得新玩家id
-	id, err := GetPlayerId(client)
+	id, err := getPlayerId(client)
 
 	if err != nil {
 		return nil, err
@@ -79,13 +79,16 @@ func NewPlayer(client *redis.Client, account string, password string, name strin
 
 	client.Set(context, fmt.Sprintf(PLAYER_ACCOUNT_KEY, account), id, 0)
 
-	return GetPlayer(client, id)
+	return getPlayer(client, id)
 }
 
-func LoginPlayer(client *redis.Client, account string, password string) (*Player, *egame_core.Error) {
-	if nil == client {
-		client = cache.GetClient()
-	}
+func NewPlayer(account string, password string, name string, balance float64) (*Player, *egame_core.Error) {
+	return newPlayer(cache.GetClient(), account, password, name, balance)
+
+}
+
+func LoginPlayer(account string, password string) (*Player, *egame_core.Error) {
+	client := cache.GetClient()
 
 	player_id, err := client.Get(context.Background(), fmt.Sprintf(PLAYER_ACCOUNT_KEY, account)).Result()
 
@@ -96,7 +99,7 @@ func LoginPlayer(client *redis.Client, account string, password string) (*Player
 		log.Println("LoginPlayer error: ", parseError)
 		return nil, &egame_core.Error{Code: egame_core.ParseError, Error: parseError}
 	} else {
-		player, getPlayerError := GetPlayer(client, id)
+		player, getPlayerError := getPlayer(client, id)
 		if getPlayerError != nil {
 			return nil, getPlayerError
 		}
@@ -108,8 +111,12 @@ func LoginPlayer(client *redis.Client, account string, password string) (*Player
 	}
 }
 
+func GetPlayer(id int64) (player *Player, err *egame_core.Error) {
+	return getPlayer(cache.GetClient(), id)
+}
+
 // 取得玩家資料
-func GetPlayer(client *redis.Client, id int64) (player *Player, err *egame_core.Error) {
+func getPlayer(client *redis.Client, id int64) (player *Player, err *egame_core.Error) {
 	if nil == client {
 		client = cache.GetClient()
 	}
@@ -143,7 +150,7 @@ func GetPlayer(client *redis.Client, id int64) (player *Player, err *egame_core.
 }
 
 // 取得可使用的玩家id
-func GetPlayerId(client *redis.Client) (int64, *egame_core.Error) {
+func getPlayerId(client *redis.Client) (int64, *egame_core.Error) {
 	if nil == client {
 		client = cache.GetClient()
 	}
@@ -151,19 +158,22 @@ func GetPlayerId(client *redis.Client) (int64, *egame_core.Error) {
 	returned := client.Incr(context, PLAYER_MAX_ID_KEY)
 	id, err := returned.Result()
 	if err != nil {
-		log.Println("GetPlayerId error: ", err)
+		log.Println("getPlayerId error: ", err)
 		return 0, &egame_core.Error{Code: egame_core.RedisError, Error: err}
 	}
 
 	if id == 0 {
-		return GetPlayerId(client)
+		return getPlayerId(client)
 	}
 
 	return id, nil
 }
+func GetPlayerBalance(id int64) (float64, error) {
+	return getPlayerBalance(nil, id)
+}
 
 // get player balance from redis
-func GetPlayerBalance(client *redis.Client, id uint64) (float64, error) {
+func getPlayerBalance(client *redis.Client, id int64) (float64, error) {
 	if nil == client {
 		client = cache.GetClient()
 	}
@@ -184,8 +194,13 @@ func GetPlayerBalance(client *redis.Client, id uint64) (float64, error) {
 	return balance, nil
 }
 
+func DecutPlayerBalance(id int64, balance float64) *egame_core.Error {
+	return decutPlayerBalance(nil, id, balance)
+
+}
+
 // decut player balance to redis
-func DecutPlayerBalance(client *redis.Client, id uint64, balance float64) *egame_core.Error {
+func decutPlayerBalance(client *redis.Client, id int64, balance float64) *egame_core.Error {
 	if nil == client {
 		client = cache.GetClient()
 	}
@@ -193,7 +208,7 @@ func DecutPlayerBalance(client *redis.Client, id uint64, balance float64) *egame
 		return &egame_core.Error{Code: egame_core.InvalidAmount, Error: fmt.Errorf("balance must be greater than 0")}
 	}
 
-	last, err := GetPlayerBalance(client, id)
+	last, err := getPlayerBalance(client, id)
 	if err != nil {
 		return &egame_core.Error{Code: egame_core.RedisError, Error: err}
 	}
@@ -213,15 +228,13 @@ func DecutPlayerBalance(client *redis.Client, id uint64, balance float64) *egame
 }
 
 // add player balance to redis
-func AddPlayerBalance(client *redis.Client, id uint64, balance float64) *egame_core.Error {
-	if nil == client {
-		client = cache.GetClient()
-	}
+func AddPlayerBalance(id int64, balance float64) *egame_core.Error {
+	client := cache.GetClient()
 	if balance <= 0 {
 		return &egame_core.Error{Code: egame_core.NotEnoughBalance, Error: fmt.Errorf("balance must be greater than 0")}
 	}
 
-	last, err := GetPlayerBalance(client, id)
+	last, err := getPlayerBalance(client, id)
 	if err != nil {
 		return &egame_core.Error{Code: egame_core.RedisError, Error: err}
 	}
