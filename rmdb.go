@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"egame_core/config"
+	"github.com/easyjoker/egame_core/config"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"

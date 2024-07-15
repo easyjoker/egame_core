@@ -1,7 +1,7 @@
 package player
 
 type Player struct {
-	Id       uint64  `json:"id" gorm:"primaryKey;autoIncrement"  mapstructure:"id"`
+	Id       int64   `json:"id" gorm:"primaryKey;autoIncrement"  mapstructure:"id"`
 	Account  string  `json:"account" gorm:"column:account" mapstructure:"account"`
 	Password string  `json:"password" gorm:"column:password" mapstructure:"password"`
 	Name     string  `json:"name" gorm:"column:name" mapstructure:"name"`

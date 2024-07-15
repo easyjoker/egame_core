@@ -15,6 +15,8 @@ const (
 	PlayerExisted ErrorCode = 1001
 	// NotEnoughBalance indicates the player does not have enough balance
 	NotEnoughBalance ErrorCode = 1002
+	// LoginFailed indicates the login failed
+	LoginFailed ErrorCode = 1003
 	// InvalidAmount indicates the amount is invalid
 	InvalidAmount ErrorCode = 2000
 

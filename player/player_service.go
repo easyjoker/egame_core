@@ -2,14 +2,14 @@ package player
 
 import (
 	"context"
-	"egame_core"
-	cache "egame_core/cache"
 	"fmt"
 	"log"
 	"strconv"
 
+	"github.com/easyjoker/egame_core"
+	cache "github.com/easyjoker/egame_core/cache"
+
 	"github.com/go-redis/redis/v8"
-	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -29,12 +29,13 @@ func NewPlayer(client *redis.Client, account string, password string, name strin
 		client = cache.GetClient()
 	}
 
-	pwd, err := GetPlayerAccountAndPassword(client, name)
-	if err != nil {
-		return nil, err
-	}
+	exist, checkErr := client.Exists(context.Background(), fmt.Sprintf(PLAYER_ACCOUNT_KEY, account)).Result()
 
-	if pwd != "" {
+	if checkErr != nil {
+		log.Println("NewPlayer error: ", checkErr)
+		return nil, &egame_core.Error{Code: egame_core.RedisError, Error: checkErr}
+	}
+	if exist == 1 {
 		return nil, &egame_core.Error{Code: egame_core.PlayerExisted, Error: fmt.Errorf("player already exists")}
 	}
 
@@ -46,52 +47,69 @@ func NewPlayer(client *redis.Client, account string, password string, name strin
 	}
 
 	// 保存玩家資料
-	player := &Player{
-		Id:       uint64(id),
-		Account:  account,
-		Password: password,
-		Name:     name,
-		Balance:  balance,
+	// player := &Player{
+	// 	Id:       id,
+	// 	Account:  account,
+	// 	Password: password,
+	// 	Name:     name,
+	// 	Balance:  balance,
+	// }
+
+	mapData := map[string]interface{}{
+		"id":       id,
+		"account":  account,
+		"password": password,
+		"name":     name,
+		"balance":  balance,
 	}
 
 	context := context.Background()
-	var mapData map[string]interface{}
-	parseError := mapstructure.Decode(player, &mapData)
-	if parseError != nil {
-		log.Println("NewPlayer error: ", err)
-		return nil, &egame_core.Error{Code: egame_core.ParseError, Error: parseError}
-	}
+	// var mapData map[string]interface{}
+	// parseError := mapstructure.Decode(player, &mapData)
+	// if parseError != nil {
+	// 	log.Println("NewPlayer error: ", err)
+	// 	return nil, &egame_core.Error{Code: egame_core.ParseError, Error: parseError}
+	// }
 
-	result := client.HSet(context, fmt.Sprintf(PLAYER_ACCOUNT_KEY, name), mapData)
+	result := client.HSet(context, fmt.Sprintf(PLAYER_KEY, id), mapData)
 	if result.Err() != nil {
 		log.Println("NewPlayer error: ", result.Err())
 		return nil, &egame_core.Error{Code: egame_core.RedisError, Error: result.Err()}
 	}
 
-	return player, nil
+	client.Set(context, fmt.Sprintf(PLAYER_ACCOUNT_KEY, account), id, 0)
+
+	return GetPlayer(client, id)
 }
 
-// 取得玩家帳密
-func GetPlayerAccountAndPassword(client *redis.Client, account string) (string, *egame_core.Error) {
+func LoginPlayer(client *redis.Client, account string, password string) (*Player, *egame_core.Error) {
 	if nil == client {
 		client = cache.GetClient()
 	}
-	context := context.Background()
-	returned := client.Get(context, fmt.Sprintf(PLAYER_ACCOUNT_KEY, account))
-	if returned.Err() != nil {
-		if returned.Err() == redis.Nil {
-			return "", nil
+
+	player_id, err := client.Get(context.Background(), fmt.Sprintf(PLAYER_ACCOUNT_KEY, account)).Result()
+
+	if err != nil {
+		return nil, &egame_core.Error{Code: egame_core.PlayerNotFound, Error: fmt.Errorf("player not found")}
+	}
+	if id, parseError := strconv.ParseInt(player_id, 10, 64); parseError != nil {
+		log.Println("LoginPlayer error: ", parseError)
+		return nil, &egame_core.Error{Code: egame_core.ParseError, Error: parseError}
+	} else {
+		player, getPlayerError := GetPlayer(client, id)
+		if getPlayerError != nil {
+			return nil, getPlayerError
+		}
+		if player.Password == password {
+			return player, nil
 		}
 
-		log.Println("GetPlayerAccount error: ", returned.Err())
-		return "", &egame_core.Error{Code: egame_core.RedisError, Error: returned.Err()}
+		return nil, &egame_core.Error{Code: egame_core.LoginFailed, Error: fmt.Errorf("login failed")}
 	}
-
-	return returned.Val(), nil
 }
 
 // 取得玩家資料
-func GetPlayer(client *redis.Client, id uint64) (player *Player, err *egame_core.Error) {
+func GetPlayer(client *redis.Client, id int64) (player *Player, err *egame_core.Error) {
 	if nil == client {
 		client = cache.GetClient()
 	}
@@ -106,21 +124,11 @@ func GetPlayer(client *redis.Client, id uint64) (player *Player, err *egame_core
 		log.Println("GetPlayer error: ", e)
 		return nil, &egame_core.Error{Code: egame_core.RedisError, Error: e}
 	}
-
-	if len(result) == 0 {
-		return nil, nil
-	}
-
-	decodeErr := mapstructure.Decode(result, &player)
-	if decodeErr != nil {
-		log.Println("GetPlayer error: ", decodeErr)
-		return nil, &egame_core.Error{Code: egame_core.ParseError, Error: decodeErr}
-	}
-
+	player = &Player{}
 	for key, value := range result {
 		switch key {
 		case "id":
-			player.Id = id
+			player.Id, _ = strconv.ParseInt(value, 10, 64)
 		case "account":
 			player.Account = value
 		case "password":
@@ -128,15 +136,9 @@ func GetPlayer(client *redis.Client, id uint64) (player *Player, err *egame_core
 		case "name":
 			player.Name = value
 		case "balance":
-			float, parseError := strconv.ParseFloat(value, 64)
-			if parseError != nil {
-				log.Println("GetPlayer error: ", parseError)
-				return nil, &egame_core.Error{Code: egame_core.ParseError, Error: parseError}
-			}
-			player.Balance = float
+			player.Balance, _ = strconv.ParseFloat(value, 64)
 		}
 	}
-
 	return player, nil
 }
 

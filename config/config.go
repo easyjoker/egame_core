@@ -8,6 +8,7 @@ import (
 )
 
 var ConfigData *Config
+var resPath string
 
 type Database struct {
 	Host     string `yaml:"host"`
@@ -27,6 +28,7 @@ type Redis struct {
 	Host     string `yaml:"host"`
 	Port     string `yaml:"port"`
 	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 type Config struct {
@@ -35,21 +37,29 @@ type Config struct {
 	Server   Server   `yaml:"server"`
 }
 
-func LoadConfig() {
-	data, err := os.ReadFile("config.yaml")
+func loadConfig() {
+	data, err := os.ReadFile(resPath)
 	if err != nil {
 		log.Fatalf("ReadFile: %v", err)
 		return
 	}
-	err = yaml.Unmarshal(data, ConfigData)
+	var con Config
+	err = yaml.Unmarshal(data, &con)
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
 	}
+
+	ConfigData = &con
+}
+
+func Init(path string) {
+	resPath = path
+	loadConfig()
 }
 
 func GetConfig() *Config {
 	if ConfigData == nil {
-		LoadConfig()
+		loadConfig()
 	}
 	return ConfigData
 }

@@ -2,8 +2,9 @@ package cache
 
 import (
 	"context"
-	"egame_core/config"
 	"log"
+
+	"github.com/easyjoker/egame_core/config"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -15,9 +16,9 @@ var rdb *redis.Client
 func Initialize() {
 	config := config.GetConfig()
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     config.Redis.Host + ":" + config.Redis.Port, // Redis 服務地址
-		Password: config.Redis.Password,                       // 沒有密碼設置
-		DB:       0,                                           // 使用默認的 DB
+		Addr: config.Redis.Host + ":" + config.Redis.Port, // Redis 服務地址
+		// Password: config.Redis.Password,                       // 沒有密碼設置
+		DB: 0, // 使用默認的 DB
 	})
 
 	// 測試連接

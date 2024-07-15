@@ -1,4 +1,4 @@
-module egame_core
+module github.com/easyjoker/egame_core
 
 go 1.22.4
 
