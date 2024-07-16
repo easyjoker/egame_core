@@ -255,3 +255,21 @@ func AddPlayerBalance(id int64, balance float64) *egame_core.Error {
 
 	return nil
 }
+
+// set player balance to redis
+func SetPlayerBalance(id int64, balance float64) *egame_core.Error {
+	client := cache.GetClient()
+	defer client.Close()
+	if balance < 0 {
+		return &egame_core.Error{Code: egame_core.InvalidAmount, Error: fmt.Errorf("balance must be greater than or equal to 0")}
+	}
+
+	context := context.Background()
+	result := client.HSet(context, fmt.Sprintf(PLAYER_KEY, id), "balance", balance)
+	if result.Err() != nil {
+		log.Println("SetPlayerBalance error: ", result.Err())
+		return &egame_core.Error{Code: egame_core.RedisError, Error: result.Err()}
+	}
+
+	return nil
+}
